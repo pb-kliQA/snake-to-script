@@ -1,6 +1,5 @@
-# -*- coding: utf-8 -*-
-
 from PyQt5 import QtCore, QtWidgets
+from python_to_js_converter import python_to_javascript
 
 
 class SnakeToScriptGui(QtWidgets.QMainWindow):
@@ -34,10 +33,12 @@ class SnakeToScriptGui(QtWidgets.QMainWindow):
         self.convert_button = QtWidgets.QPushButton(self.centralwidget)
         self.convert_button.setGeometry(QtCore.QRect(930, 280, 131, 28))
         self.convert_button.setObjectName("convert_button")
+        self.convert_button.setEnabled(False)
 
         self.copy_button = QtWidgets.QPushButton(self.centralwidget)
         self.copy_button.setGeometry(QtCore.QRect(930, 570, 131, 28))
         self.copy_button.setObjectName("copy_button")
+        self.copy_button.setEnabled(False)
 
         MainWindow.setCentralWidget(self.centralwidget)
 
@@ -59,15 +60,39 @@ class SnakeToScriptGui(QtWidgets.QMainWindow):
     def connectSignalsSlots(self):
         self.convert_button.clicked.connect(self.convertCode)
         self.copy_button.clicked.connect(self.copyCode)
+        self.plainTextEdit.textChanged.connect(self.updateConvertButtonState)
+        self.textBrowser.textChanged.connect(self.updateCopyButtonState)
 
     def convertCode(self):
-        # TODO: Implement code conversion logic
-        python_code = self.plainTextEdit.toPlainText()
-        # Convert Python to JavaScript (implement this functionality)
-        javascript_code = f"// Converted from Python:\n{python_code}"
-        self.textBrowser.setText(javascript_code)
+        try:
+            python_code = self.plainTextEdit.toPlainText()
+            javascript_code = python_to_javascript(python_code)
+
+            # Remove the runtime import and __name__ assignment
+            javascript_lines = javascript_code.split('\n')
+            cleaned_js_code = '\n'.join(line for line in javascript_lines
+                                        if not line.startswith('import')
+                                        and not line.startswith('var __name__'))
+
+            self.textBrowser.setText(cleaned_js_code)
+
+            if cleaned_js_code.startswith("// Error"):
+                self.statusbar.showMessage("Conversion failed. See output for details.", 5000)
+            elif cleaned_js_code.strip() == "":
+                self.statusbar.showMessage("Conversion produced no output. Check your Python code.", 5000)
+            else:
+                self.statusbar.showMessage("Conversion successful", 3000)
+        except Exception as e:
+            self.statusbar.showMessage(f"An error occurred: {str(e)}", 5000)
+            print(f"Error in convertCode: {str(e)}", file=sys.stderr)
 
     def copyCode(self):
         javascript_code = self.textBrowser.toPlainText()
         QtWidgets.QApplication.clipboard().setText(javascript_code)
         self.statusbar.showMessage("Code copied to clipboard", 3000)
+
+    def updateConvertButtonState(self):
+        self.convert_button.setEnabled(bool(self.plainTextEdit.toPlainText().strip()))
+
+    def updateCopyButtonState(self):
+        self.copy_button.setEnabled(bool(self.textBrowser.toPlainText().strip()))
